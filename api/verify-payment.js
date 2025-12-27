@@ -11,12 +11,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   
-  const { reference, checkRecent } = req.body;
+  const { reference, checkRecent, afterTimestamp } = req.body;
   
   try {
     if (checkRecent) {
-      // List recent transactions
-      const response = await fetch('https://api.paystack.co/transaction?perPage=10', {
+      const response = await fetch('https://api.paystack.co/transaction?perPage=20', {
         headers: {
           'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
           'Content-Type': 'application/json'
@@ -25,8 +24,11 @@ export default async function handler(req, res) {
       
       const data = await response.json();
       
-      // Find most recent successful payment
-      const recentSuccess = data.data?.find(tx => tx.status === 'success');
+      // Find successful payment made AFTER the timestamp
+      const recentSuccess = data.data?.find(tx => {
+        const txTime = new Date(tx.paid_at).getTime();
+        return tx.status === 'success' && (!afterTimestamp || txTime >= afterTimestamp);
+      });
       
       if (recentSuccess) {
         return res.json({ 
@@ -38,7 +40,6 @@ export default async function handler(req, res) {
         return res.json({ success: false, error: 'No recent payment found' });
       }
     } else if (reference) {
-      // Verify specific reference
       const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
         headers: {
           'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
